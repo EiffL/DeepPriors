@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TensorFlow.js Tutorial</title>
+<style>
+body {
+  height: 100%;
+  width: 100%;
+  background: #000;
+}
+#animation {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  background: #000;
+}
+</style>
+
+  <!-- Import TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.1.0/dist/tf.min.js"></script>
+
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+
+</head>
+
+<body>
+  <canvas id="animation" width="500" height="500"></canvas>
+
+    <script>
+
+  (async function animation() {
+      // This function is closeluy modeled on
+      const model = await tf.loadGraphModel('/models/js/export3/model.json');
+      const grads = tf.grad(x => model.predict(x));
+      const vfunc = (x,y) => {
+        gr = grads(tf.stack([x, y], axis=1));
+        gn = tf.sum(tf.mul(gr,gr), axis=1, keepDims=true);
+        gr = tf.mul(tf.div(gr, gn), tf.clipByValue(gn,0,100));
+
+        return tf.split(gr, 2, axis=1);
+      };
+      var N = 50 // 25^2 curves
+      const [wpredx,wpredy] = vfunc(tf.zeros([N]), tf.zeros([N]));
+      wpredx.dataSync();
+      wpredx.dispose();
+      wpredy.dataSync();
+      wpredy.dispose();
+
+      // vector field data
+      var gamma = 2, c = 10, dt = 0.002,
+          X0 = [], Y0 = [], // to store initial starting locations
+          X = [], Y = [], // to store current point for each curve
+        	xb = 4, yb = 3;
+
+          // discretize the vfield coords
+      var    xp = d3.range(N).map(
+              function (i) {
+                  return -1.5 + xb*i/N;
+              }),
+  	      yp = d3.range(N).map(
+              function (i) {
+                  return -1 + yb*i/N;
+              });
+      // array of starting positions for each curve on a uniform grid
+      for (var i = 0; i < N; i++) {
+          for (var j = 0; j < N; j++) {
+              X.push(xp[j]), Y.push(yp[i]);
+              X0.push(xp[j]), Y0.push(yp[i]);
+          }
+      }
+      // // vfield
+      function F(x, y) {
+          const [px,py] = tf.tidy(() => {
+             const [predx,predy] = vfunc(x, y);
+             return [predx.dataSync(), predy.dataSync()];
+           });
+          return [px, py];
+      }
+
+      //// frame setup
+      var width = 500,
+          height = 500,
+          mw = 0, // if we want a margin
+          g = d3.select("#animation").node().getContext("2d"); // initialize a "canvas" element
+      g.fillStyle = "rgba(0, 0, 0, 0.05)"; // for fading curves
+      g.lineWidth = 0.8;
+      g.strokeStyle = "#FF8000"; // html color code
+      //// mapping from vfield coords to web page coords
+      var xMap = d3.scale.linear()
+          .domain([-1.5, 2.5])
+          .range([mw, width - mw]),
+  	yMap = d3.scale.linear()
+          .domain([-1, 2.])
+          .range([height - mw, mw]);
+      //// animation setup
+      var animAge = 0,
+          frameRate = 30, // ms per timestep (yeah I know it's not really a rate)
+          M = X.length,
+          thr=200,
+          MaxAge = 100, // # timesteps before restart
+          age = [];
+      for (var i=0; i<M; i++) {age.push(randage());}
+      var drawFlag = true;
+      // setInterval(function () {if (drawFlag) {draw();}}, frameRate);
+      d3.timer(function () {if (drawFlag) {draw();}}, frameRate);
+      d3.select("#animation")
+          .on("click", function() {drawFlag = (drawFlag) ? false : true;})
+      function randage() {
+          // to randomize starting ages for each curve
+          return Math.round(Math.random()*100);
+      }
+      // for info on the global canvas operations see
+      // http://bucephalus.org/text/CanvasHandbook/CanvasHandbook.html#globalcompositeoperation
+      g.globalCompositeOperation = "source-over";
+      function draw() {
+          g.fillRect(0, 0, width, height); // fades all existing curves by a set amount determined by fillStyle (above), which sets opacity using rgba
+          // Compute dr for all points
+          var [dx, dy] = F(X, Y);
+          for (var i=0; i<M; i++) { // draw a single timestep for every curve
+              // if dx dy is larger than our threshold, we don't need to move this point
+              if((dx[i]**2 + dy[i]**2) < thr){
+                //var dr = F(X[i], Y[i]);
+                g.beginPath();
+                g.moveTo(xMap(X[i]), yMap(Y[i])); // the start point of the path
+                g.lineTo(xMap(X[i]+=dx[i]*dt), yMap(Y[i]+=dy[i]*dt)); // the end point
+                //g.lineTo(xMap(X[i]+=dr[0]*dt), yMap(Y[i]+=dr[1]*dt)); // the end point
+                g.stroke(); // final draw command
+              };
+              if (age[i]++ > MaxAge) {
+                  // incriment age of each curve, restart if MaxAge is reached
+                  age[i] = randage();
+                  X[i] = X0[i], Y[i] = Y0[i];
+              }
+          }
+      }
+  })()
+
+  </script>
+</body>
+
+</html>
