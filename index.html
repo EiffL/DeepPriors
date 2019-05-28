@@ -30,7 +30,7 @@ body {
 
   (async function animation() {
       // This function is closeluy modeled on
-      const model = await tf.loadGraphModel('/models/js/export3/model.json');
+      const model = await tf.loadGraphModel('models/js/export3/model.json');
       const grads = tf.grad(x => model.predict(x));
       const vfunc = (x,y) => {
         gr = grads(tf.stack([x, y], axis=1));
