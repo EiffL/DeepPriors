@@ -19,7 +19,7 @@ body {
   <!-- Import TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.1.0/dist/tf.min.js"></script>
 
-  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="https://d3js.org/d3.v3.min.js"></script>
 
 </head>
 
@@ -30,7 +30,7 @@ body {
 
   (async function animation() {
       // This function is closely modeled on http://bl.ocks.org/newby-jay/767c5ffdbbe43b65902f
-      const model = await tf.loadGraphModel('/models/js/export3/model.json');
+      const model = await tf.loadGraphModel('models/js/export3/model.json');
       const grads = tf.grad(x => model.predict(x));
       const vfunc = (x,y) => {
         c = tf.concat([tf.reshape(x, [-1,1] ), tf.reshape(y, [-1,1])], axis=1);
