@@ -29,11 +29,12 @@ body {
     <script>
 
   (async function animation() {
-      // This function is closeluy modeled on
+      // This function is closely modeled on http://bl.ocks.org/newby-jay/767c5ffdbbe43b65902f
       const model = await tf.loadGraphModel('/models/js/export3/model.json');
       const grads = tf.grad(x => model.predict(x));
       const vfunc = (x,y) => {
-        gr = grads(tf.stack([x, y], axis=1));
+        c = tf.concat([tf.reshape(x, [-1,1] ), tf.reshape(y, [-1,1])], axis=1);
+        gr = grads(c);
         gn = tf.sum(tf.mul(gr,gr), axis=1, keepDims=true);
         gr = tf.mul(tf.div(gr, gn), tf.clipByValue(gn,0,100));
 
@@ -47,10 +48,13 @@ body {
       wpredy.dispose();
 
       // vector field data
-      var gamma = 2, c = 10, dt = 0.002,
+      var gamma = 2, c = 10, dt = 0.003,
           X0 = [], Y0 = [], // to store initial starting locations
           X = [], Y = [], // to store current point for each curve
         	xb = 4, yb = 3;
+      var sigma=0.2;
+      var X1=0.5, Y1=0.5, X2=0, Y2=0;
+      var XC=0, YC=0;
 
           // discretize the vfield coords
       var    xp = d3.range(N).map(
@@ -70,8 +74,8 @@ body {
       }
       // // vfield
       function F(x, y) {
-          const [px,py] = tf.tidy(() => {
-             const [predx,predy] = vfunc(x, y);
+          const [px, py] = tf.tidy(() => {
+             const [predx, predy] = vfunc(x, y);
              return [predx.dataSync(), predy.dataSync()];
            });
           return [px, py];
@@ -89,7 +93,7 @@ body {
       var xMap = d3.scale.linear()
           .domain([-1.5, 2.5])
           .range([mw, width - mw]),
-  	yMap = d3.scale.linear()
+         	yMap = d3.scale.linear()
           .domain([-1, 2.])
           .range([height - mw, mw]);
       //// animation setup
@@ -104,26 +108,51 @@ body {
       // setInterval(function () {if (drawFlag) {draw();}}, frameRate);
       d3.timer(function () {if (drawFlag) {draw();}}, frameRate);
       d3.select("#animation")
-          .on("click", function() {drawFlag = (drawFlag) ? false : true;})
+          .on("click", function() {
+            var mouse = d3.mouse(this);
+            XC = xMap.invert(mouse[0]);
+            YC = yMap.invert(mouse[1]);
+            //drawFlag = (drawFlag) ? false : true;
+          })
       function randage() {
           // to randomize starting ages for each curve
           return Math.round(Math.random()*100);
       }
+
       // for info on the global canvas operations see
       // http://bucephalus.org/text/CanvasHandbook/CanvasHandbook.html#globalcompositeoperation
       g.globalCompositeOperation = "source-over";
+      function drawX(x, y) {
+          g.beginPath();
+          s = 0.7*(xMap(sigma) - xMap(0));
+          g.strokeStyle = "#C94277";
+          g.lineWidth = 0.5;
+
+          // g.moveTo(xMap(x) - s, yMap(y) - s);
+          // g.lineTo(xMap(x) + s, yMap(y) + s);
+          //
+          // g.moveTo(xMap(x) + s, yMap(y) - s);
+          // g.lineTo(xMap(x) - s, yMap(y) + s);
+          // g.stroke();
+
+          g.beginPath();
+          g.lineWidth = 1.5;
+          g.arc(xMap(x), yMap(y), s/0.7, 0, 2 * Math.PI);
+          g.stroke();
+      }
       function draw() {
+
           g.fillRect(0, 0, width, height); // fades all existing curves by a set amount determined by fillStyle (above), which sets opacity using rgba
           // Compute dr for all points
+          g.lineWidth = 1.25;
+          g.strokeStyle = "#FF8000"; // html color code
           var [dx, dy] = F(X, Y);
           for (var i=0; i<M; i++) { // draw a single timestep for every curve
               // if dx dy is larger than our threshold, we don't need to move this point
               if((dx[i]**2 + dy[i]**2) < thr){
-                //var dr = F(X[i], Y[i]);
                 g.beginPath();
                 g.moveTo(xMap(X[i]), yMap(Y[i])); // the start point of the path
                 g.lineTo(xMap(X[i]+=dx[i]*dt), yMap(Y[i]+=dy[i]*dt)); // the end point
-                //g.lineTo(xMap(X[i]+=dr[0]*dt), yMap(Y[i]+=dr[1]*dt)); // the end point
                 g.stroke(); // final draw command
               };
               if (age[i]++ > MaxAge) {
@@ -132,6 +161,40 @@ body {
                   X[i] = X0[i], Y[i] = Y0[i];
               }
           }
+          // Computes gradients of the solution
+          var [dx, dy] = F([X1, X2], [Y1, Y2]);
+          dx[0]+= 0.5*(XC - (X1+X2))/sigma/sigma;
+          dx[1]+= 0.5*(XC - (X1+X2))/sigma/sigma;
+          dy[0]+= 0.5*(YC - (Y1+Y2))/sigma/sigma;
+          dy[1]+= 0.5*(YC - (Y1+Y2))/sigma/sigma;
+
+          // Draw solution points
+          g.lineWidth = 10;
+          g.strokeStyle = "#E4D6A7"; // html color code
+          XS=X1+X2; YS=Y1+Y2;
+          g.beginPath();
+          g.moveTo(xMap(X1), yMap(Y1));
+          g.lineTo(xMap(X1+=dx[0]*dt), yMap(Y1+=dy[0]*dt));
+          g.rect(xMap(X1), yMap(Y1), 0.1, 0.1);
+          g.stroke();
+
+          g.strokeStyle = "#E9B44C"; // html color code
+          g.beginPath();
+          g.moveTo(xMap(X2), yMap(Y2));
+          g.lineTo(xMap(X2+=dx[1]*dt), yMap(Y2+=dy[1]*dt));
+          g.rect(xMap(X2), yMap(Y2), 0.1, 0.1);
+          g.stroke();
+
+          g.strokeStyle = "#FF3F00"; // html color code
+          g.beginPath();
+          g.moveTo(xMap(XS), yMap(YS));
+          XS=X1+X2; YS=Y1+Y2;
+          g.lineTo(xMap(XS), yMap(YS));
+          g.rect(xMap(XS), yMap(YS), 0.1, 0.1);
+          g.stroke();
+
+          drawX(XC, YC);
+
       }
   })()
 
