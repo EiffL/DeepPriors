@@ -1,5 +1,7 @@
 # DeepPriors
-Demo on using deep signal priors for inverse problems
+Demo on using deep signal priors for inverse problems. To try it out, click [here](https://eiffl.github.io/DeepPriors/index.html).
+
+By clicking on the plot, you are setting the data fidelity constraint.
 
 ## Training and exporting a model
 
